@@ -19,6 +19,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.ByteArrayOutputStream
+import org.gradle.jvm.toolchain.JavaLanguageVersion
 
 plugins {
     id("org.jetbrains.intellij.platform") version "2.7.0"
@@ -44,7 +45,7 @@ data class BuildData(
 val buildDataList = listOf(
     BuildData(
         ideaSDKShortVersion = "2025.3",
-        ideaSDKVersion = "253.28086.51",
+        ideaSDKVersion = "253.30387.90",
         sinceBuild = "253",
         untilBuild = "253.*",
         bunch = "212",
@@ -88,6 +89,24 @@ fun getRev(): String {
         standardOutput = os
     }
     return os.toString().substring(0, 7)
+}
+
+// Product selection: IU (IntelliJ Ultimate - default), IC (Community), PY (PyCharm Pro), PC (PyCharm Community)
+val product = System.getProperty("IDE_PRODUCT", "IU")
+
+// Lock toolchains to Java 21 for the 253 target
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class).configureEach {
+    compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
 }
 
 task("downloadEmmyDebugger", type = Download::class) {
@@ -164,7 +183,13 @@ project(":") {
         implementation("org.eclipse.mylyn.github:org.eclipse.egit.github.core:2.1.5")
         implementation("com.jgoodies:forms:1.2.1")
         intellijPlatform {
-            intellijIdeaUltimate(buildVersionData.ideaSDKVersion)
+            when (product) {
+                "IU" -> intellijIdeaUltimate(buildVersionData.ideaSDKVersion)
+                "IC" -> intellijIdeaCommunity(buildVersionData.ideaSDKVersion)
+                "PY" -> pycharmProfessional(buildVersionData.ideaSDKVersion)
+                "PC" -> pycharmCommunity(buildVersionData.ideaSDKVersion)
+                else -> intellijIdeaUltimate(buildVersionData.ideaSDKVersion)
+            }
             bundledModule("intellij.spellchecker")
         }
     }
@@ -185,9 +210,15 @@ project(":") {
     intellijPlatform {
         version = version
         sandboxContainer.set(layout.buildDirectory.dir("${buildVersionData.ideaSDKShortVersion}/idea-sandbox"))
+        // We don't provide custom settings searchable via IDE Search, so skip building searchable options
+        buildSearchableOptions.set(false)
     }
 
+    // Enable legacy "bunch" source switching only when explicitly requested
+    val enableBunch = System.getProperty("ENABLE_BUNCH")?.toBoolean() == true
+
     task("bunch") {
+        onlyIf { enableBunch }
         doLast {
             val rev = getRev()
             // reset
@@ -215,7 +246,9 @@ project(":") {
 
     tasks {
         buildPlugin {
-            dependsOn("bunch", "installEmmyDebugger")
+            // Always install debugger assets; run :bunch only if enabled
+            dependsOn("installEmmyDebugger")
+            if (enableBunch) dependsOn("bunch")
             archiveBaseName.set(buildVersionData.archiveName)
             from(fileTree(resDir) { include("!!DONT_UNZIP_ME!!.txt") }) {
                 into("/${project.name}")

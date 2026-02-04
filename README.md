@@ -89,17 +89,56 @@ QQ交流群：1群：`29850775` 2群：`529914962`
 - [ ] `@interface` support
 - [ ] API Hub
 
-## Build environment requirements
+## Build environment requirements (modern)
 
-- JDK 11
-- Setup environment variables as following:
+- JDK 21 (same runtime as IntelliJ IDEA/PyCharm 2025.3)
+- No `IDEA_HOME_*` variables required. The Gradle IntelliJ Platform plugin downloads platform artifacts automatically.
 
-        JAVA_HOME="path to JDK 11"
-        IDEA_HOME_203="path to IDEA 203+"
-        
-## Building
+Notes:
+- Toolchains are pinned in `build.gradle.kts` (`java.toolchain` and Kotlin `jvmToolchain(21)`), so Gradle uses Java 21.
+- Searchable options are disabled by default for faster/robust local builds.
 
-  `./gradlew buildPlugin -DIDEA_VER=203`
+## Building (modern)
+
+Quick build for IntelliJ IDEA Ultimate 2025.3:
+
+```
+./gradlew clean buildPlugin -DIDE_PRODUCT=IU
+```
+
+Build for PyCharm (same 2025.3 platform):
+- PyCharm Professional: `./gradlew clean buildPlugin -DIDE_PRODUCT=PY`
+- PyCharm Community: `./gradlew clean buildPlugin -DIDE_PRODUCT=PC`
+
+The resulting ZIP appears under `build/distributions`.
+
+## Run in IDE sandbox (for development)
+
+Run inside a sandboxed IDE with the plugin installed:
+
+```
+./gradlew runIde -DIDE_PRODUCT=IU
+```
+
+Other products:
+- PyCharm Professional: `./gradlew runIde -DIDE_PRODUCT=PY`
+- PyCharm Community: `./gradlew runIde -DIDE_PRODUCT=PC`
+
+Tip: If Gradle cached an older platform build, refresh dependencies once:
+
+```
+./gradlew --refresh-dependencies runIde -DIDE_PRODUCT=IU
+```
+
+Verification: In the sandbox IDE, Settings → Plugins → Installed should show
+`EmmyLua – Luau/Roblox (Local Build)` so you can tell it’s your local build.
+
+## Notes
+
+- Legacy source "bunch" switching is disabled by default. If you ever need it,
+  run with `-DENABLE_BUNCH=true`.
+- Some bundled plugins (e.g., Kubernetes) may log benign errors in sandbox; this
+  doesn’t affect this plugin. You can disable such plugins in the sandbox if desired.
 
 ## Developed By
 
